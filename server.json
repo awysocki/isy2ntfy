@@ -1,26 +1,22 @@
 {
   "name": "ISY2NTFY",
-  "docs": "https://github.com/",
+  "docs": "https://github.com/awysocki/isy2ntfy",
   "type": "python3",
   "executable": "main.py",
   "install": "install.sh",
-  "description": "Send ISY notification customization messages to ntfy.sh",
   "version": "2026.7.001",
   "shortPoll": 30,
   "longPoll": 300,
-  "profile_version": "3",
+  "restart": true,
   "credits": [
     {
       "title": "ISY2NTFY",
-      "author": "awysocki",
-      "version": "2026.7.001",
-      "date": "2026-07-04",
-      "source": "https://github.com/awysocki/isy2ntfy",
-      "license": "MIT",
-      "desc": "Send ISY notification customization messages to ntfy.sh"
+      "version": "2026.7.001"
     }
   ],
-  "enableDiscovery": false,
+  "profile_version": "2",
+  "description": "Send ISY notification customization messages to ntfy.sh",
+  "id": "isy2ntfy",
   "language": "python3",
   "interface": "pg3"
 }
