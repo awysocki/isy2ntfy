@@ -101,3 +101,7 @@ ISY2NTFY is a PG3 node server that sends ISY notification customization template
 Long (<= 1000 chars):
 
 ISY2NTFY connects your ISY notification customization messages to ntfy.sh so you can deliver alerts to phones and desktops through ntfy topics. The node server is built for PG3 and supports KEY-based ntfy authentication with simple setup. After configuration, select a template in the controller node and trigger Send Selected Message to publish that content to your topic. If your ISY custom messages change, use Refresh Templates to reload dropdown options. Required settings are KEY and TOPIC, with optional ISY_URL that defaults to https://127.0.0.1.
+
+Keywords/Tags:
+
+isy, pg3, polyglot, notifications, ntfy, ntfy.sh, push, alerts, eisy, polisy, templates, home automation
