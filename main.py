@@ -10,6 +10,7 @@ from isy2ntfy_node import ISY2Ntfy, MessageTemplate, Settings
 
 LOGGER = udi_interface.LOGGER
 polyglot = None
+HAS_CONTROLLER_CLASS = hasattr(udi_interface, "Controller")
 
 
 def _profile_dir() -> Path:
@@ -44,10 +45,15 @@ def write_msgsel_editor(templates: List[MessageTemplate]) -> None:
         "</editors>\n"
     )
 
-    (_profile_dir() / "editors.xml").write_text(xml, encoding="utf-8")
+    editor_file = _profile_dir() / "editor" / "editors.xml"
+    editor_file.parent.mkdir(parents=True, exist_ok=True)
+    editor_file.write_text(xml, encoding="utf-8")
 
 
-class Controller(udi_interface.Controller):
+ControllerBase = udi_interface.Controller if HAS_CONTROLLER_CLASS else udi_interface.Node
+
+
+class Controller(ControllerBase):
     id = "isy2ntfy_controller"
     drivers = [
         {"driver": "ST", "value": 0, "uom": 2},
@@ -56,14 +62,22 @@ class Controller(udi_interface.Controller):
     commands = {}
 
     def __init__(self, poly):
-        super().__init__(poly)
+        if HAS_CONTROLLER_CLASS:
+            super().__init__(poly)
+        else:
+            super().__init__(poly, "controller", "controller", "ISY2NTFY")
+
         self.poly = poly
         self.custom_params = udi_interface.Custom(poly, "customparams")
         self.bridge = None
         self.templates: Dict[int, str] = {}
 
         self.poly.subscribe(self.poly.CUSTOMPARAMS, self.parameter_handler)
-        self.poly.subscribe(self.poly.START, self.start, address=self.address)
+        try:
+            self.poly.subscribe(self.poly.START, self.start, address=self.address)
+        except TypeError:
+            # Older interface variants do not support address kwarg on subscribe.
+            self.poly.subscribe(self.poly.START, self.start)
         self.poly.subscribe(self.poly.POLL, self.poll)
 
         self.commands = {
@@ -175,5 +189,7 @@ class Controller(udi_interface.Controller):
 if __name__ == "__main__":
     polyglot = udi_interface.Interface([])
     polyglot.start()
-    Controller(polyglot)
+    controller = Controller(polyglot)
+    if not HAS_CONTROLLER_CLASS:
+        polyglot.addNode(controller)
     polyglot.runForever()
