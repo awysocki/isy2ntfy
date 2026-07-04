@@ -1,6 +1,17 @@
 {
   "name": "ISY2NTFY",
   "docs": "https://github.com/",
+  "credits": [
+    {
+      "title": "ISY2NTFY",
+      "author": "awysocki",
+      "version": "2026.7.1",
+      "date": "2026-07-04",
+      "source": "https://github.com/awysocki/isy2ntfy",
+      "license": "MIT",
+      "desc": "Send ISY notification customization messages to ntfy.sh"
+    }
+  ],
   "type": "python3",
   "executable": "main.py",
   "install": "install.sh",

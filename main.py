@@ -112,7 +112,9 @@ class Controller(ControllerBase):
                 self.custom_params[key] = default
                 changed = True
         if changed:
-            self.custom_params.save()
+            save_fn = getattr(self.custom_params, "save", None)
+            if callable(save_fn):
+                save_fn()
             LOGGER.info("Saved default custom parameters. Fill KEY and TOPIC in PG3 Custom Configuration.")
 
     def _build_bridge(self):
