@@ -1,20 +1,29 @@
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional
 import xml.etree.ElementTree as ET
+from urllib.parse import quote, urlparse, urlunparse
 
 import requests
+
+try:
+    import udi_interface  # type: ignore
+
+    LOGGER = udi_interface.LOGGER
+except Exception:  # pragma: no cover - fallback for local runs without udi_interface
+    LOGGER = logging.getLogger(__name__)
 
 
 @dataclass
 class Settings:
-    isy_base_url: str
+    isy_base_url: Optional[str]
     isy_username: Optional[str]
     isy_password: Optional[str]
-    ntfy_topic: str
+    ntfy_publish_url: str
     ntfy_key: str
 
 
@@ -45,10 +54,10 @@ class ISY2Ntfy:
     def from_config_file(cls, config_path: str | Path) -> "ISY2Ntfy":
         config = json.loads(Path(config_path).read_text(encoding="utf-8"))
         settings = Settings(
-            isy_base_url=config["isy_base_url"].rstrip("/"),
+            isy_base_url=(config.get("isy_base_url") or "").rstrip("/") or None,
             isy_username=config.get("isy_username"),
             isy_password=config.get("isy_password"),
-            ntfy_topic=config["ntfy_topic"],
+            ntfy_publish_url=str(config.get("ntfy_publish_url") or "https://ntfy.sh/isy2ntfy").rstrip("/"),
             ntfy_key=config["ntfy_key"],
         )
         return cls(settings)
@@ -59,6 +68,9 @@ class ISY2Ntfy:
         Different ISY firmware builds can expose this in slightly different paths.
         We try several known endpoints and parse XML or JSON.
         """
+        if not self.settings.isy_base_url:
+            raise RuntimeError("ISY REST URL not configured for template fetch mode")
+
         endpoints = [
             "/rest/notifications",
             "/rest/notifications/customizations",
@@ -82,13 +94,18 @@ class ISY2Ntfy:
             ) from last_error
         return []
 
-    def send_customization_to_ntfy(self, template_id: int) -> requests.Response:
+    def send_customization_to_ntfy(
+        self,
+        template_id: int,
+        message_id: Optional[str] = None,
+        tags: Optional[str] = None,
+    ) -> requests.Response:
         templates = self.fetch_customization_messages()
         selected = next((t for t in templates if t.template_id == template_id), None)
         if selected is None:
             raise ValueError(f"Template ID {template_id} not found in ISY customizations")
 
-        return self._publish_to_ntfy(selected)
+        return self._publish_to_ntfy(selected, message_id=message_id, tags=tags)
 
     def build_template_options(self) -> Dict[int, str]:
         """Returns template choices for a PG3 editor dropdown/selector mapping."""
@@ -98,16 +115,83 @@ class ISY2Ntfy:
             options[template.template_id] = label
         return options
 
-    def _publish_to_ntfy(self, template: MessageTemplate) -> requests.Response:
-        url = f"https://ntfy.sh/{self.settings.ntfy_topic}"
+    def _publish_to_ntfy(
+        self,
+        template: MessageTemplate,
+        message_id: Optional[str] = None,
+        tags: Optional[str] = None,
+    ) -> requests.Response:
+        url = self._build_ntfy_publish_url(self.settings.ntfy_publish_url, self.settings.ntfy_key)
+
+        effective_tags = (tags or "bell").strip() or "bell"
         headers = {
-            "Authorization": f"Bearer {self.settings.ntfy_key}",
             "Title": template.name or "ISY Notification",
-            "Tags": "bell",
+            "Tags": effective_tags,
         }
+        if self._looks_like_token(self.settings.ntfy_key):
+            headers["Authorization"] = f"Bearer {self.settings.ntfy_key}"
+        if message_id:
+            headers["X-ID"] = str(message_id)
+
+        auth_enabled = "Authorization" in headers
+        safe_headers = {k: v for k, v in headers.items() if k != "Authorization"}
+        if auth_enabled:
+            safe_headers["Authorization"] = "Bearer ***"
+
+        LOGGER.info(
+            "NTFY publish request: method=POST url=%s auth=%s message_id=%s headers=%s body_len=%s",
+            url,
+            auth_enabled,
+            message_id or "",
+            safe_headers,
+            len(template.body.encode("utf-8")),
+        )
+
         response = requests.post(url, data=template.body.encode("utf-8"), headers=headers, timeout=10)
         response.raise_for_status()
+        LOGGER.info("NTFY publish response: status=%s url=%s", response.status_code, url)
         return response
+
+    @staticmethod
+    def _looks_like_token(value: str) -> bool:
+        return (value or "").strip().startswith("tk_")
+
+    @staticmethod
+    def _build_ntfy_publish_url(raw_url: str, key: str) -> str:
+        """Build a POST topic URL from base URL and KEY.
+
+        Supported inputs include:
+        - URL: https://ntfy.sh, KEY as topic -> https://ntfy.sh/<KEY>
+        - URL: https://ntfy.sh, KEY as token -> https://ntfy.sh/isy2ntfy
+        - URL already including topic path -> use that topic path directly
+        """
+        url = (raw_url or "").strip()
+        if not url:
+            url = "https://ntfy.sh"
+
+        # Accept bare host values by defaulting to https.
+        if "://" not in url:
+            url = f"https://{url}"
+
+        parsed = urlparse(url)
+        base_path = parsed.path.rstrip("/")
+
+        if base_path.endswith("/publish"):
+            # Accept older config values, but publish to plain topic endpoint.
+            path = base_path[: -len("/publish")] or "/"
+        elif base_path and base_path != "":
+            path = base_path
+        else:
+            clean_key = (key or "").strip()
+            if ISY2Ntfy._looks_like_token(clean_key):
+                topic = "isy2ntfy"
+            else:
+                topic = clean_key or "isy2ntfy"
+            path = f"/{quote(topic, safe='')}"
+
+        # Drop query/fragment so runtime message body is always the payload.
+        normalized = parsed._replace(path=path, query="", fragment="")
+        return urlunparse(normalized)
 
     @staticmethod
     def _parse_templates(response: requests.Response) -> List[MessageTemplate]:
