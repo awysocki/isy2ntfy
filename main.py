@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 from typing import Dict, List
@@ -15,6 +16,30 @@ HAS_CONTROLLER_CLASS = hasattr(udi_interface, "Controller")
 
 def _profile_dir() -> Path:
     return Path(__file__).parent / "profile"
+
+
+def _load_nodeserver_version() -> str:
+    """Load node server version from server.json for polyglot.start(version)."""
+    default_version = "0.0.1"
+    server_json = Path(__file__).parent / "server.json"
+    try:
+        data = json.loads(server_json.read_text(encoding="utf-8"))
+    except Exception:
+        return default_version
+
+    version = str(data.get("version") or "").strip()
+    if version:
+        return version
+
+    credits = data.get("credits")
+    if isinstance(credits, list) and credits:
+        first = credits[0]
+        if isinstance(first, dict):
+            credits_version = str(first.get("version") or "").strip()
+            if credits_version:
+                return credits_version
+
+    return default_version
 
 
 def _safe_label(text: str, limit: int = 50) -> str:
@@ -189,9 +214,12 @@ class Controller(ControllerBase):
 
 
 if __name__ == "__main__":
+    ns_version = _load_nodeserver_version()
+    LOGGER.info("Starting with node server version %s", ns_version)
     polyglot = udi_interface.Interface([])
-    polyglot.start()
+    polyglot.start(ns_version)
     controller = Controller(polyglot)
     if not HAS_CONTROLLER_CLASS:
         polyglot.addNode(controller)
+    polyglot.ready()
     polyglot.runForever()
