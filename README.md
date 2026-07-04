@@ -52,3 +52,5 @@ Compress-Archive -Path main.py,isy2ntfy_node.py,requirements.txt,install.sh,serv
 
 - The message dropdown is generated from ISY customization templates at startup/refresh.
 - If your ISY requires credentials for REST, set environment variables `ISY_USERNAME` and `ISY_PASSWORD` in your PG3 runtime environment.
+- Version format is `yyyy.m.revision` in `server.json` profile_version.
+- Current version is `2026.7.1` and revision can be 1 through 999.
