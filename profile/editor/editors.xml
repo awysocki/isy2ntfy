@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<editors>
+  <editor id="CTRLST">
+    <range>
+      <option id="0">Disconnected</option>
+      <option id="1">Connected</option>
+    </range>
+  </editor>
+  <editor id="MSGSEL">
+    <range>
+      <option id="1">Message 1</option>
+    </range>
+  </editor>
+</editors>

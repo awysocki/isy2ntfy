@@ -1,0 +1,14 @@
+{
+  "name": "ISY2NTFY",
+  "docs": "https://github.com/",
+  "type": "python3",
+  "executable": "main.py",
+  "install": "install.sh",
+  "description": "Send ISY notification customization messages to ntfy.sh",
+  "shortPoll": 30,
+  "longPoll": 300,
+  "profile_version": "0.1.0",
+  "enableDiscovery": false,
+  "language": "python3",
+  "interface": "pg3"
+}

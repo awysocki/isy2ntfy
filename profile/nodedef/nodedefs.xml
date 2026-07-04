@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<nodeDefs>
+  <nodeDef id="isy2ntfy_controller" nls="ctl">
+    <sts>
+      <st id="ST" editor="CTRLST" />
+      <st id="GV0" editor="MSGSEL" />
+    </sts>
+    <cmds>
+      <sends>
+        <cmd id="SEND" />
+        <cmd id="REFRESH" />
+        <cmd id="QUERY" />
+      </sends>
+    </cmds>
+  </nodeDef>
+</nodeDefs>
