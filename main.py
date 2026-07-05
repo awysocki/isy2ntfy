@@ -93,7 +93,7 @@ class Controller(ControllerBase):
         if HAS_CONTROLLER_CLASS:
             super().__init__(poly)
         else:
-            super().__init__(poly, "controller", "controller", "ISY2NTFY")
+            super().__init__(poly, "controller", "controller", "NTFY")
 
         self.poly = poly
         self.custom_params = udi_interface.Custom(poly, "customparams")
@@ -122,7 +122,7 @@ class Controller(ControllerBase):
         }
 
     def start(self, *_args):
-        LOGGER.info("Starting ISY2NTFY")
+        LOGGER.info("Starting NTFY")
         self._ensure_required_params()
         self._connect_and_refresh_templates(install_profile=True)
         key = str(self.custom_params.get("KEY", "")).strip()
@@ -348,10 +348,10 @@ class Controller(ControllerBase):
             return
 
         version = _load_nodeserver_version()
-        title = "ISY2NTFY Started"
-        body = f"ISY2NTFY node server started. Version: {version}. source={source}"
+        title = "NTFY Started"
+        body = f"NTFY node server started. Version: {version}. source={source}"
         if source == "key-updated":
-            title = "ISY2NTFY Started (Key Updated)"
+            title = "NTFY Started (Key Updated)"
 
         try:
             response = self.bridge._publish_to_ntfy(
