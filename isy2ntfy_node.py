@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-import json
 import logging
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Dict, List, Optional
 import xml.etree.ElementTree as ET
 from urllib.parse import quote, urlparse, urlunparse
@@ -49,18 +47,6 @@ class ISY2Ntfy:
         if settings.isy_username and settings.isy_password:
             self.session.auth = (settings.isy_username, settings.isy_password)
         self.session.verify = False
-
-    @classmethod
-    def from_config_file(cls, config_path: str | Path) -> "ISY2Ntfy":
-        config = json.loads(Path(config_path).read_text(encoding="utf-8"))
-        settings = Settings(
-            isy_base_url=(config.get("isy_base_url") or "").rstrip("/") or None,
-            isy_username=config.get("isy_username"),
-            isy_password=config.get("isy_password"),
-            ntfy_publish_url=str(config.get("ntfy_publish_url") or "https://ntfy.sh/isy2ntfy").rstrip("/"),
-            ntfy_key=config["ntfy_key"],
-        )
-        return cls(settings)
 
     def fetch_customization_messages(self) -> List[MessageTemplate]:
         """Returns ISY customization messages from the first compatible endpoint.
@@ -262,25 +248,3 @@ class ISY2Ntfy:
             if child is not None and child.text:
                 return child.text.strip()
         return None
-
-
-def _demo() -> None:
-    """Simple local test flow before wiring into PG3 command handlers."""
-    bridge = ISY2Ntfy.from_config_file("config.example.json")
-
-    templates = bridge.fetch_customization_messages()
-    if not templates:
-        print("No ISY customizations found")
-        return
-
-    print("Available customization messages:")
-    for template in templates:
-        print(f"  {template.template_id}: {template.name}")
-
-    selected_id = templates[0].template_id
-    response = bridge.send_customization_to_ntfy(selected_id)
-    print(f"Published template {selected_id} to ntfy: {response.status_code}")
-
-
-if __name__ == "__main__":
-    _demo()

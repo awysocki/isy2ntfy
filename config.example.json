@@ -1,7 +1,0 @@
-{
-  "isy_base_url": "https://isy.local",
-  "isy_username": "admin",
-  "isy_password": "admin",
-  "ntfy_topic": "your-topic",
-  "ntfy_key": "replace-with-your-ntfy-token"
-}
