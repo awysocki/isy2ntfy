@@ -11,7 +11,6 @@ from isy2ntfy_node import ISY2Ntfy, MessageTemplate, Settings
 
 LOGGER = udi_interface.LOGGER
 polyglot = None
-HAS_CONTROLLER_CLASS = hasattr(udi_interface, "Controller")
 DEFAULT_NTFY_URL = "https://ntfy.sh"
 DEFAULT_MESSAGE_TAG = "bell"
 DEFAULT_STARTUP_TAG = "rocket"
@@ -60,14 +59,24 @@ def write_msgsel_editor(templates: List[MessageTemplate]) -> None:
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
         "<editors>\n"
         "  <editor id=\"CTRLST\">\n"
-        "    <range>\n"
+        "    <range uom=\"2\">\n"
         "      <option id=\"0\">Disconnected</option>\n"
         "      <option id=\"1\">Connected</option>\n"
         "    </range>\n"
         "  </editor>\n"
         "  <editor id=\"MSGSEL\">\n"
-        "    <range>\n"
+        "    <range uom=\"25\">\n"
         f"{editor_options}\n"
+        "    </range>\n"
+        "  </editor>\n"
+        "  <editor id=\"MSGDEV\">\n"
+        "    <range uom=\"25\">\n"
+        "      <option id=\"0\">default</option>\n"
+        "    </range>\n"
+        "  </editor>\n"
+        "  <editor id=\"MSGSND\">\n"
+        "    <range uom=\"25\">\n"
+        "      <option id=\"0\">default</option>\n"
         "    </range>\n"
         "  </editor>\n"
         "</editors>\n"
@@ -78,11 +87,11 @@ def write_msgsel_editor(templates: List[MessageTemplate]) -> None:
     editor_file.write_text(xml, encoding="utf-8")
 
 
-ControllerBase = udi_interface.Controller if HAS_CONTROLLER_CLASS else udi_interface.Node
+ControllerBase = udi_interface.Node
 
 
 class Controller(ControllerBase):
-    id = "isy2ntfy_controller"
+    id = "ntfy"
     drivers = [
         {"driver": "ST", "value": 0, "uom": 2},
         {"driver": "GV0", "value": 1, "uom": 25},
@@ -90,10 +99,7 @@ class Controller(ControllerBase):
     commands = {}
 
     def __init__(self, poly):
-        if HAS_CONTROLLER_CLASS:
-            super().__init__(poly)
-        else:
-            super().__init__(poly, "controller", "controller", "NTFY")
+        super().__init__(poly, "ntfy", "ntfy", "NTFY")
 
         self.poly = poly
         self.custom_params = udi_interface.Custom(poly, "customparams")
@@ -275,12 +281,28 @@ class Controller(ControllerBase):
 
         # Allow command payload override if PG3 sends a value.
         if isinstance(command, dict):
-            val = command.get("value")
-            if val is not None:
+            query = command.get("query")
+            if isinstance(query, dict):
+                qval = query.get("Template.uom25")
+                if qval is None:
+                    qval = query.get("Content.uom25")
+                if qval is not None:
+                    try:
+                        selected = int(float(qval))
+                    except Exception:
+                        pass
+
+            # PG3 command payloads vary by interface/version. Prefer explicit values
+            # from the SEND command parameter, then fallback to generic "value".
+            for key in ("GV0", "gv0", "uom25", "value"):
+                val = command.get(key)
+                if val is None:
+                    continue
                 try:
                     selected = int(float(val))
+                    break
                 except Exception:
-                    pass
+                    continue
 
         try:
             response = self.bridge.send_customization_to_ntfy(
@@ -299,16 +321,45 @@ class Controller(ControllerBase):
 
     def cmd_gv10(self, *args):
         command = self._extract_command(args)
-        """Accept external notification payloads and publish directly to ntfy.
+        """Send message from UI template selector or external notification payload.
 
-        Expected source payload shape (example):
-        command["query"]["Content.uom147"]["notification"]["formatted"]
-        with keys: subject/body.
+        Supported payloads:
+        - UI send from command panel: query["Template.uom25"]
+        - External notification payload: query["Content.uom147"]["notification"]["formatted"]
         """
         if not self.bridge:
             self._build_bridge()
         if not self.bridge:
             return
+
+        if isinstance(command, dict):
+            query = command.get("query")
+            if isinstance(query, dict):
+                template_val = query.get("Template.uom25")
+                if template_val is None:
+                    template_val = query.get("Content.uom25")
+                if template_val is not None:
+                    try:
+                        selected = int(float(template_val))
+                    except Exception:
+                        selected = int(float(self.getDriver("GV0") or 1))
+                    try:
+                        response = self.bridge.send_customization_to_ntfy(
+                            selected,
+                            message_id=self._build_message_id(),
+                            tags=DEFAULT_MESSAGE_TAG,
+                        )
+                        # Keep status driver in sync with explicit UI send selection.
+                        self.setDriver("GV0", selected, force=True)
+                        LOGGER.info(
+                            "Sent template %s via GV10 UI command. HTTP %s url=%s",
+                            selected,
+                            response.status_code,
+                            self._response_url(response),
+                        )
+                    except Exception as exc:
+                        LOGGER.error("Failed to publish GV10 template %s: %s", selected, exc)
+                    return
 
         title = "ISY Notification"
         body = ""
@@ -376,7 +427,6 @@ if __name__ == "__main__":
     polyglot = udi_interface.Interface([])
     polyglot.start(ns_version)
     controller = Controller(polyglot)
-    if not HAS_CONTROLLER_CLASS:
-        polyglot.addNode(controller)
+    polyglot.addNode(controller)
     polyglot.ready()
     polyglot.runForever()

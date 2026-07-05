@@ -1,6 +1,10 @@
-ND-isy2ntfy_controller-NAME = NTFY
-ST-isy2ntfy_controller-ST-NAME = Status
-ST-isy2ntfy_controller-GV0-NAME = Message Template
-CMD-isy2ntfy_controller-SEND-NAME = Send Selected Message
-CMD-isy2ntfy_controller-REFRESH-NAME = Refresh Templates
-CMD-isy2ntfy_controller-QUERY-NAME = Query
+ND-ntfy-NAME = NTFY
+ST-ntfy-ST-NAME = Status
+ST-ntfy-GV0-NAME = Message Template
+CMD-ntfy-SEND_SYS_CUSTOM-NAME = Send Message
+# Maps the dropdown menu text next to the button
+CMDP-ntfy-SEND_SYS_CUSTOM-CustomMsg-NAME = Content
+
+CMDP-Content-NAME = Custom Message
+CMDP-SEND-Content-NAME = Custom Message
+CMDP-ntfy-SEND-Content-NAME = Custom Message

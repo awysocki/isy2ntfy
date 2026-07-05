@@ -1,14 +1,24 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <editors>
   <editor id="CTRLST">
-    <range>
+    <range uom="2">
       <option id="0">Disconnected</option>
       <option id="1">Connected</option>
     </range>
   </editor>
   <editor id="MSGSEL">
-    <range>
+    <range uom="25">
       <option id="1">Message 1</option>
+    </range>
+  </editor>
+  <editor id="MSGDEV">
+    <range uom="25">
+      <option id="0">default</option>
+    </range>
+  </editor>
+  <editor id="MSGSND">
+    <range uom="25">
+      <option id="0">default</option>
     </range>
   </editor>
 </editors>
