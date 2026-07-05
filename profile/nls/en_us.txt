@@ -1,10 +1,9 @@
 ND-ntfy-NAME = NTFY
 ST-ntfy-ST-NAME = Status
 ST-ntfy-GV0-NAME = Message Template
-CMD-ntfy-SEND_SYS_CUSTOM-NAME = Send Message
-# Maps the dropdown menu text next to the button
-CMDP-ntfy-SEND_SYS_CUSTOM-CustomMsg-NAME = Content
 
-CMDP-Content-NAME = Custom Message
-CMDP-SEND-Content-NAME = Custom Message
-CMDP-ntfy-SEND-Content-NAME = Custom Message
+# This creates the "Send Message" button text
+CMD-ntfy-SEND-NAME = Send Message
+
+# This labels the dropdown selection menu next to the button
+CMDP-ntfy-SEND-Content-NAME = Content

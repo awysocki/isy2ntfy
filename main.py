@@ -145,6 +145,10 @@ class Controller(ControllerBase):
         self._ensure_required_params()
         current_key = str(self.custom_params.get("KEY", "")).strip()
         self._connect_and_refresh_templates(install_profile=True)
+    
+        LOGGER.info("Refreshing profile files and pushing to IoX hub...")
+        self.poly.updateProfile()
+        self.poly.installprofile()
 
         # First CUSTOMPARAMS callback is PG3 bootstrap data, not a user edit.
         if not self._customparams_bootstrapped:
@@ -245,6 +249,7 @@ class Controller(ControllerBase):
                 first_id = templates[0].template_id
                 self.setDriver("GV0", first_id, force=True)
             if install_profile:
+                self.poly.updateProfile()
                 self.poly.installprofile()
             LOGGER.info("Loaded %s customization messages", len(templates))
         except Exception as exc:
@@ -294,7 +299,7 @@ class Controller(ControllerBase):
 
             # PG3 command payloads vary by interface/version. Prefer explicit values
             # from the SEND command parameter, then fallback to generic "value".
-            for key in ("GV0", "gv0", "uom25", "value"):
+            for key in ("content", "GV0", "gv0", "uom25", "value"):
                 val = command.get(key)
                 if val is None:
                     continue

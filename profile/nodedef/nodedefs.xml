@@ -7,10 +7,9 @@
       <st id="GV0" editor="MSGSEL" />
     </sts>
     <cmds>
-      <sends />
       <accepts>
-        <cmd id="SEND_SYS_CUSTOM">
-          <p id="CustomMsg" editor="MSGSEL" init="GV0" />
+        <cmd id="SEND">
+          <p id="Content" editor="MSGSEL" init="GV0" />
         </cmd>
       </accepts>
     </cmds>
