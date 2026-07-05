@@ -12,9 +12,8 @@ import requests
 
 try:
     import udi_interface  # type: ignore
-
     LOGGER = udi_interface.LOGGER
-except Exception:  # pragma: no cover - fallback for local runs without udi_interface
+except Exception:  # pragma: no cover
     LOGGER = logging.getLogger(__name__)
 
 
@@ -35,20 +34,22 @@ class MessageTemplate:
 
 
 class ISY2Ntfy:
-    """Small integration layer intended for a PG3 node implementation.
-
-    What this gives you now:
-    - single configurable field for ntfy KEY (`ntfy_key`)
-    - fetches ISY email/notification customizations
-    - sends a selected customization template to ntfy
-    """
-
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings, polyglot: Optional[object] = None) -> None:
         self.settings = settings
         self.session = requests.Session()
+        self.session.verify = False
+
+        # Attempt to auto-extract the system authentication token passed from PG3
+        if polyglot and hasattr(polyglot, 'get_token'):
+            token = polyglot.get_token()
+            if token:
+                LOGGER.info("Authenticating via local automated PG3 Bearer Token Headers.")
+                self.session.headers.update({"Authorization": f"Bearer {token}"})
+                return
+
+        # Manual backup credentials
         if settings.isy_username and settings.isy_password:
             self.session.auth = (settings.isy_username, settings.isy_password)
-        self.session.verify = False
 
     @classmethod
     def from_config_file(cls, config_path: str | Path) -> "ISY2Ntfy":
@@ -63,17 +64,14 @@ class ISY2Ntfy:
         return cls(settings)
 
     def fetch_customization_messages(self) -> List[MessageTemplate]:
-        """Returns ISY customization messages from the first compatible endpoint.
-
-        Different ISY firmware builds can expose this in slightly different paths.
-        We try several known endpoints and parse XML or JSON.
-        """
         if not self.settings.isy_base_url:
             raise RuntimeError("ISY REST URL not configured for template fetch mode")
 
+        # Probing array matching IoX version 6 paths
         endpoints = [
-            "/rest/notifications",
+            "/rest/notification/customizations",
             "/rest/notifications/customizations",
+            "/rest/notifications",
         ]
 
         last_error: Optional[Exception] = None
@@ -85,7 +83,7 @@ class ISY2Ntfy:
                 templates = self._parse_templates(response)
                 if templates:
                     return templates
-            except Exception as exc:  # pragma: no cover - best-effort endpoint probing
+            except Exception as exc:  # pragma: no cover
                 last_error = exc
 
         if last_error:
@@ -108,7 +106,6 @@ class ISY2Ntfy:
         return self._publish_to_ntfy(selected, message_id=message_id, tags=tags)
 
     def build_template_options(self) -> Dict[int, str]:
-        """Returns template choices for a PG3 editor dropdown/selector mapping."""
         options: Dict[int, str] = {}
         for template in self.fetch_customization_messages():
             label = f"{template.template_id}: {template.name}".strip()
@@ -158,18 +155,10 @@ class ISY2Ntfy:
 
     @staticmethod
     def _build_ntfy_publish_url(raw_url: str, key: str) -> str:
-        """Build a POST topic URL from base URL and KEY.
-
-        Supported inputs include:
-        - URL: https://ntfy.sh, KEY as topic -> https://ntfy.sh/<KEY>
-        - URL: https://ntfy.sh, KEY as token -> https://ntfy.sh/isy2ntfy
-        - URL already including topic path -> use that topic path directly
-        """
         url = (raw_url or "").strip()
         if not url:
             url = "https://ntfy.sh"
 
-        # Accept bare host values by defaulting to https.
         if "://" not in url:
             url = f"https://{url}"
 
@@ -177,7 +166,6 @@ class ISY2Ntfy:
         base_path = parsed.path.rstrip("/")
 
         if base_path.endswith("/publish"):
-            # Accept older config values, but publish to plain topic endpoint.
             path = base_path[: -len("/publish")] or "/"
         elif base_path and base_path != "":
             path = base_path
@@ -189,7 +177,6 @@ class ISY2Ntfy:
                 topic = clean_key or "isy2ntfy"
             path = f"/{quote(topic, safe='')}"
 
-        # Drop query/fragment so runtime message body is always the payload.
         normalized = parsed._replace(path=path, query="", fragment="")
         return urlunparse(normalized)
 
@@ -239,7 +226,6 @@ class ISY2Ntfy:
         templates: List[MessageTemplate] = []
         root = ET.fromstring(xml_text)
 
-        # Common naming variants seen in notification XML payloads.
         for node in root.findall(".//customization") + root.findall(".//message"):
             template_id = ISY2Ntfy._find_first_text(node, ["id", "key", "num"])
             if not template_id:
@@ -262,25 +248,3 @@ class ISY2Ntfy:
             if child is not None and child.text:
                 return child.text.strip()
         return None
-
-
-def _demo() -> None:
-    """Simple local test flow before wiring into PG3 command handlers."""
-    bridge = ISY2Ntfy.from_config_file("config.example.json")
-
-    templates = bridge.fetch_customization_messages()
-    if not templates:
-        print("No ISY customizations found")
-        return
-
-    print("Available customization messages:")
-    for template in templates:
-        print(f"  {template.template_id}: {template.name}")
-
-    selected_id = templates[0].template_id
-    response = bridge.send_customization_to_ntfy(selected_id)
-    print(f"Published template {selected_id} to ntfy: {response.status_code}")
-
-
-if __name__ == "__main__":
-    _demo()

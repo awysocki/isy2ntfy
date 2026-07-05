@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 from typing import Dict, List
 
@@ -114,13 +113,10 @@ class Controller(ControllerBase):
         try:
             self.poly.subscribe(self.poly.START, self.start, address=self.address)
         except TypeError:
-            # Older interface variants do not support address kwarg on subscribe.
             self.poly.subscribe(self.poly.START, self.start)
         self.poly.subscribe(self.poly.POLL, self.poll)
 
         self.commands = {
-            # Node.runCmd in older udi_interface calls handlers as fun(self, command).
-            # Use unbound functions in this map for compatibility.
             "SEND": Controller.cmd_send,
             "REFRESH": Controller.cmd_refresh,
             "QUERY": Controller.query,
@@ -150,16 +146,15 @@ class Controller(ControllerBase):
         self.poly.updateProfile()
         self.poly.installprofile()
 
-        # First CUSTOMPARAMS callback is PG3 bootstrap data, not a user edit.
         if not self._customparams_bootstrapped:
             self._customparams_bootstrapped = True
             return
 
-        # After bootstrap, notify only when KEY is actually set/changed.
         if current_key and current_key != previous_key:
             self._send_startup_announcement(source="key-updated")
 
     def _ensure_required_params(self):
+        # Lean and clean for automated loopback token routing
         required = {
             "KEY": "",
             "NTFY_URL": DEFAULT_NTFY_URL,
@@ -175,7 +170,7 @@ class Controller(ControllerBase):
             save_fn = getattr(self.custom_params, "save", None)
             if callable(save_fn):
                 save_fn()
-            LOGGER.info("Saved defaults. Set KEY in PG3 Custom Configuration (NTFY_URL defaults to https://ntfy.sh).")
+            LOGGER.info("Saved defaults.")
 
     def _send_id_enabled(self) -> bool:
         raw = str(self.custom_params.get("SEND_ID", "true")).strip().lower()
@@ -213,32 +208,28 @@ class Controller(ControllerBase):
         key = str(self.custom_params.get("KEY", "")).strip()
         ntfy_url = str(self.custom_params.get("NTFY_URL", DEFAULT_NTFY_URL)).strip() or DEFAULT_NTFY_URL
 
-        # Optional ISY URL for template-fetch mode (SEND by template id).
-        isy_url = str(self.custom_params.get("ISY_REST_URL", "")).strip() or None
-
         if not key:
             self.bridge = None
             self.setDriver("ST", 0, force=True)
             LOGGER.warning("Set KEY custom param to enable ntfy publishing")
             return
 
+        # Target the local eisy core directly on the automated loopback port
+        isy_url = "http://localhost:8080"
+
         settings = Settings(
-            isy_base_url=isy_url.rstrip("/") if isy_url else None,
-            isy_username=os.getenv("ISY_USERNAME") or None,
-            isy_password=os.getenv("ISY_PASSWORD") or None,
+            isy_base_url=isy_url,
+            isy_username=None,
+            isy_password=None,
             ntfy_publish_url=ntfy_url,
             ntfy_key=key,
         )
-        self.bridge = ISY2Ntfy(settings)
+        self.bridge = ISY2Ntfy(settings, polyglot=self.poly)
         self.setDriver("ST", 1, force=True)
 
     def _connect_and_refresh_templates(self, install_profile: bool = False):
         self._build_bridge()
         if not self.bridge:
-            return
-
-        if not self.bridge.settings.isy_base_url:
-            LOGGER.info("ISY_REST_URL not set; template dropdown refresh skipped (GV10/direct publish still available)")
             return
 
         try:
@@ -281,10 +272,8 @@ class Controller(ControllerBase):
         if not self.bridge:
             return
 
-        # Preferred source is driver value selected from MSGSEL editor.
         selected = int(float(self.getDriver("GV0") or 1))
 
-        # Allow command payload override if PG3 sends a value.
         if isinstance(command, dict):
             query = command.get("query")
             if isinstance(query, dict):
@@ -297,8 +286,6 @@ class Controller(ControllerBase):
                     except Exception:
                         pass
 
-            # PG3 command payloads vary by interface/version. Prefer explicit values
-            # from the SEND command parameter, then fallback to generic "value".
             for key in ("content", "GV0", "gv0", "uom25", "value"):
                 val = command.get(key)
                 if val is None:
@@ -326,12 +313,6 @@ class Controller(ControllerBase):
 
     def cmd_gv10(self, *args):
         command = self._extract_command(args)
-        """Send message from UI template selector or external notification payload.
-
-        Supported payloads:
-        - UI send from command panel: query["Template.uom25"]
-        - External notification payload: query["Content.uom147"]["notification"]["formatted"]
-        """
         if not self.bridge:
             self._build_bridge()
         if not self.bridge:
@@ -354,7 +335,6 @@ class Controller(ControllerBase):
                             message_id=self._build_message_id(),
                             tags=DEFAULT_MESSAGE_TAG,
                         )
-                        # Keep status driver in sync with explicit UI send selection.
                         self.setDriver("GV0", selected, force=True)
                         LOGGER.info(
                             "Sent template %s via GV10 UI command. HTTP %s url=%s",

@@ -25,6 +25,8 @@ Set these in PG3 Custom Configuration:
 - `SEND_ID`: include `X-ID` on publish (optional, defaults to `true`)
 - `ID_PREFIX`: prefix for generated message IDs (optional, defaults to `msg`)
 - `ISY_REST_URL`: optional ISY REST URL for template-fetch mode (`SEND`/`Refresh Templates`)
+- `ISY_USERNAME`: optional ISY REST username for template-fetch mode
+- `ISY_PASSWORD`: optional ISY REST password for template-fetch mode
 
 Examples for `NTFY_URL`:
 
@@ -78,10 +80,10 @@ Compress-Archive -Path main.py,isy2ntfy_node.py,requirements.txt,install.sh,serv
 - The message dropdown is generated from ISY customization templates at startup/refresh.
 - If `ISY_REST_URL` is not set, template refresh is skipped and direct publish mode still works.
 - On startup, the node server sends a version announcement message to ntfy.
-- If your ISY requires credentials for REST, set environment variables `ISY_USERNAME` and `ISY_PASSWORD` in your PG3 runtime environment.
+- If your ISY requires credentials for REST, set `ISY_USERNAME` and `ISY_PASSWORD` in PG3 Custom Configuration.
 - Version format is `yyyy.m.###` in `server.json` fields `version` and `profile_version`.
 - PG3 Store listing uses `version`; `profile_version` controls profile update behavior.
-- Current version is `2026.7.012` and revision runs from `001` through `999`.
+- Current version is `2026.7.034` and revision runs from `001` through `999`.
 
 ## PG3 Store Description
 
