@@ -93,7 +93,7 @@ class Controller(ControllerBase):
         if HAS_CONTROLLER_CLASS:
             super().__init__(poly)
         else:
-            super().__init__(poly, "controller", "controller", "NTFY")
+            super().__init__(poly, "controller", "controller", "ISY2NTFY")
 
         self.poly = poly
         self.custom_params = udi_interface.Custom(poly, "customparams")
@@ -122,11 +122,11 @@ class Controller(ControllerBase):
         }
 
     def start(self, *_args):
-        LOGGER.info("Starting NTFY")
+        LOGGER.info("Starting ISY2NTFY")
         self._ensure_required_params()
         self._connect_and_refresh_templates(install_profile=True)
-        topic = self._get_topic_param()
-        if topic:
+        key = str(self.custom_params.get("KEY", "")).strip()
+        if key:
             self._send_startup_announcement(source="startup")
 
     def poll(self, poll_type):
@@ -134,10 +134,10 @@ class Controller(ControllerBase):
             self.setDriver("ST", 1 if self.bridge else 0, force=True)
 
     def parameter_handler(self, params):
-        previous_topic = self._get_topic_param()
+        previous_key = str(self.custom_params.get("KEY", "")).strip()
         self.custom_params.load(params)
         self._ensure_required_params()
-        current_topic = self._get_topic_param()
+        current_key = str(self.custom_params.get("KEY", "")).strip()
         self._connect_and_refresh_templates(install_profile=True)
 
         # First CUSTOMPARAMS callback is PG3 bootstrap data, not a user edit.
@@ -145,30 +145,13 @@ class Controller(ControllerBase):
             self._customparams_bootstrapped = True
             return
 
-        # After bootstrap, notify only when TOPIC is actually set/changed.
-        if current_topic and current_topic != previous_topic:
-            self._send_startup_announcement(source="topic-updated")
-
-    def _get_topic_param(self) -> str:
-        topic = str(self.custom_params.get("TOPIC", "")).strip()
-        if topic:
-            return topic
-
-        # Backward compatibility: migrate legacy KEY if TOPIC is not set.
-        legacy_key = str(self.custom_params.get("KEY", "")).strip()
-        if legacy_key:
-            self.custom_params["TOPIC"] = legacy_key
-            save_fn = getattr(self.custom_params, "save", None)
-            if callable(save_fn):
-                save_fn()
-            LOGGER.info("Migrated legacy KEY parameter to TOPIC")
-            return legacy_key
-
-        return ""
+        # After bootstrap, notify only when KEY is actually set/changed.
+        if current_key and current_key != previous_key:
+            self._send_startup_announcement(source="key-updated")
 
     def _ensure_required_params(self):
         required = {
-            "TOPIC": "",
+            "KEY": "",
             "NTFY_URL": DEFAULT_NTFY_URL,
             "SEND_ID": "true",
             "ID_PREFIX": "msg",
@@ -182,7 +165,7 @@ class Controller(ControllerBase):
             save_fn = getattr(self.custom_params, "save", None)
             if callable(save_fn):
                 save_fn()
-            LOGGER.info("Saved defaults. Set TOPIC in PG3 Custom Configuration (NTFY_URL defaults to https://ntfy.sh).")
+            LOGGER.info("Saved defaults. Set KEY in PG3 Custom Configuration (NTFY_URL defaults to https://ntfy.sh).")
 
     def _send_id_enabled(self) -> bool:
         raw = str(self.custom_params.get("SEND_ID", "true")).strip().lower()
@@ -217,16 +200,16 @@ class Controller(ControllerBase):
         return self._next_message_id()
 
     def _build_bridge(self):
-        topic = self._get_topic_param()
+        key = str(self.custom_params.get("KEY", "")).strip()
         ntfy_url = str(self.custom_params.get("NTFY_URL", DEFAULT_NTFY_URL)).strip() or DEFAULT_NTFY_URL
 
         # Optional ISY URL for template-fetch mode (SEND by template id).
         isy_url = str(self.custom_params.get("ISY_REST_URL", "")).strip() or None
 
-        if not topic:
+        if not key:
             self.bridge = None
             self.setDriver("ST", 0, force=True)
-            LOGGER.warning("Set TOPIC custom param to enable ntfy publishing")
+            LOGGER.warning("Set KEY custom param to enable ntfy publishing")
             return
 
         settings = Settings(
@@ -234,7 +217,7 @@ class Controller(ControllerBase):
             isy_username=os.getenv("ISY_USERNAME") or None,
             isy_password=os.getenv("ISY_PASSWORD") or None,
             ntfy_publish_url=ntfy_url,
-            ntfy_topic=topic,
+            ntfy_key=key,
         )
         self.bridge = ISY2Ntfy(settings)
         self.setDriver("ST", 1, force=True)
@@ -365,10 +348,10 @@ class Controller(ControllerBase):
             return
 
         version = _load_nodeserver_version()
-        title = "NTFY Started"
-        body = f"NTFY node server started. Version: {version}. source={source}"
-        if source == "topic-updated":
-            title = "NTFY Started (Topic Updated)"
+        title = "ISY2NTFY Started"
+        body = f"ISY2NTFY node server started. Version: {version}. source={source}"
+        if source == "key-updated":
+            title = "ISY2NTFY Started (Key Updated)"
 
         try:
             response = self.bridge._publish_to_ntfy(

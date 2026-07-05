@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Dict, List, Optional
 import xml.etree.ElementTree as ET
 from urllib.parse import quote, urlparse, urlunparse
@@ -22,7 +24,7 @@ class Settings:
     isy_username: Optional[str]
     isy_password: Optional[str]
     ntfy_publish_url: str
-    ntfy_topic: str
+    ntfy_key: str
 
 
 @dataclass
@@ -36,7 +38,7 @@ class ISY2Ntfy:
     """Small integration layer intended for a PG3 node implementation.
 
     What this gives you now:
-    - single configurable field for ntfy TOPIC (`ntfy_topic`)
+    - single configurable field for ntfy KEY (`ntfy_key`)
     - fetches ISY email/notification customizations
     - sends a selected customization template to ntfy
     """
@@ -47,6 +49,18 @@ class ISY2Ntfy:
         if settings.isy_username and settings.isy_password:
             self.session.auth = (settings.isy_username, settings.isy_password)
         self.session.verify = False
+
+    @classmethod
+    def from_config_file(cls, config_path: str | Path) -> "ISY2Ntfy":
+        config = json.loads(Path(config_path).read_text(encoding="utf-8"))
+        settings = Settings(
+            isy_base_url=(config.get("isy_base_url") or "").rstrip("/") or None,
+            isy_username=config.get("isy_username"),
+            isy_password=config.get("isy_password"),
+            ntfy_publish_url=str(config.get("ntfy_publish_url") or "https://ntfy.sh/isy2ntfy").rstrip("/"),
+            ntfy_key=config["ntfy_key"],
+        )
+        return cls(settings)
 
     def fetch_customization_messages(self) -> List[MessageTemplate]:
         """Returns ISY customization messages from the first compatible endpoint.
@@ -107,15 +121,15 @@ class ISY2Ntfy:
         message_id: Optional[str] = None,
         tags: Optional[str] = None,
     ) -> requests.Response:
-        url = self._build_ntfy_publish_url(self.settings.ntfy_publish_url, self.settings.ntfy_topic)
+        url = self._build_ntfy_publish_url(self.settings.ntfy_publish_url, self.settings.ntfy_key)
 
         effective_tags = (tags or "bell").strip() or "bell"
         headers = {
             "Title": template.name or "ISY Notification",
             "Tags": effective_tags,
         }
-        if self._looks_like_token(self.settings.ntfy_topic):
-            headers["Authorization"] = f"Bearer {self.settings.ntfy_topic}"
+        if self._looks_like_token(self.settings.ntfy_key):
+            headers["Authorization"] = f"Bearer {self.settings.ntfy_key}"
         if message_id:
             headers["X-ID"] = str(message_id)
 
@@ -143,12 +157,12 @@ class ISY2Ntfy:
         return (value or "").strip().startswith("tk_")
 
     @staticmethod
-    def _build_ntfy_publish_url(raw_url: str, topic_or_token: str) -> str:
-        """Build a POST topic URL from base URL and TOPIC.
+    def _build_ntfy_publish_url(raw_url: str, key: str) -> str:
+        """Build a POST topic URL from base URL and KEY.
 
         Supported inputs include:
-        - URL: https://ntfy.sh, TOPIC as topic -> https://ntfy.sh/<TOPIC>
-        - URL: https://ntfy.sh, TOPIC as token -> https://ntfy.sh/isy2ntfy
+        - URL: https://ntfy.sh, KEY as topic -> https://ntfy.sh/<KEY>
+        - URL: https://ntfy.sh, KEY as token -> https://ntfy.sh/isy2ntfy
         - URL already including topic path -> use that topic path directly
         """
         url = (raw_url or "").strip()
@@ -168,11 +182,11 @@ class ISY2Ntfy:
         elif base_path and base_path != "":
             path = base_path
         else:
-            clean_topic = (topic_or_token or "").strip()
-            if ISY2Ntfy._looks_like_token(clean_topic):
+            clean_key = (key or "").strip()
+            if ISY2Ntfy._looks_like_token(clean_key):
                 topic = "isy2ntfy"
             else:
-                topic = clean_topic or "isy2ntfy"
+                topic = clean_key or "isy2ntfy"
             path = f"/{quote(topic, safe='')}"
 
         # Drop query/fragment so runtime message body is always the payload.
@@ -248,3 +262,25 @@ class ISY2Ntfy:
             if child is not None and child.text:
                 return child.text.strip()
         return None
+
+
+def _demo() -> None:
+    """Simple local test flow before wiring into PG3 command handlers."""
+    bridge = ISY2Ntfy.from_config_file("config.example.json")
+
+    templates = bridge.fetch_customization_messages()
+    if not templates:
+        print("No ISY customizations found")
+        return
+
+    print("Available customization messages:")
+    for template in templates:
+        print(f"  {template.template_id}: {template.name}")
+
+    selected_id = templates[0].template_id
+    response = bridge.send_customization_to_ntfy(selected_id)
+    print(f"Published template {selected_id} to ntfy: {response.status_code}")
+
+
+if __name__ == "__main__":
+    _demo()
