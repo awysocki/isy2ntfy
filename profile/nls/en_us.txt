@@ -1,4 +1,4 @@
-ND-isy2ntfy_controller-NAME = ISY to ntfy
+ND-isy2ntfy_controller-NAME = NTFY
 ST-isy2ntfy_controller-ST-NAME = Status
 ST-isy2ntfy_controller-GV0-NAME = Message Template
 CMD-isy2ntfy_controller-SEND-NAME = Send Selected Message

@@ -1,10 +1,10 @@
-# ISY2NTFY PG3 node server
+# NTFY PG3 node server
 
 This project is ready to copy to PG3 and send ISY customization messages to ntfy.sh.
 
 What it provides:
 
-1. KEY custom parameter for ntfy token.
+1. TOPIC custom parameter for ntfy topic/token.
 2. Message selection from ISY email/notification customization templates.
 3. SEND command to publish the selected template to ntfy.sh.
 
@@ -20,7 +20,7 @@ What it provides:
 
 Set these in PG3 Custom Configuration:
 
-- `KEY`: ntfy bearer token (required)
+- `TOPIC`: ntfy topic name or bearer token (required)
 - `NTFY_URL`: ntfy base URL (optional, defaults to `https://ntfy.sh`)
 - `SEND_ID`: include `X-ID` on publish (optional, defaults to `true`)
 - `ID_PREFIX`: prefix for generated message IDs (optional, defaults to `msg`)
@@ -35,10 +35,10 @@ It sends different default ntfy tags/icons by message type:
 - Startup announcements use `rocket`.
 - ISY message sends (SEND/GV10) use `bell`.
 
-KEY behavior:
+TOPIC behavior:
 
-- If KEY starts with `tk_`, KEY is treated as an access token (Bearer auth) and topic defaults to `isy2ntfy`.
-- Otherwise KEY is treated as the topic name and no Authorization header is added.
+- If TOPIC starts with `tk_`, TOPIC is treated as an access token (Bearer auth) and topic defaults to `isy2ntfy`.
+- Otherwise TOPIC is treated as the topic name and no Authorization header is added.
 
 Message ID behavior:
 
@@ -62,12 +62,12 @@ Compress-Archive -Path main.py,isy2ntfy_node.py,requirements.txt,install.sh,serv
 2. Install from local zip (or your local package workflow).
 3. Select `isy2ntfy_pg3.zip`.
 4. Add node server slot and start it.
-5. Open Custom Configuration and set `KEY` (plus optional `NTFY_URL`).
+5. Open Custom Configuration and set `TOPIC` (plus optional `NTFY_URL`).
 6. Restart the node server once after saving params.
 
 ## Use in Admin Console
 
-1. Open the ISY2NTFY controller node.
+1. Open the NTFY controller node.
 2. Set `Message Template` (GV0) from dropdown.
 3. Run command `Refresh Templates` if you changed ISY customizations.
 4. Run command `Send Selected Message`.
@@ -87,15 +87,15 @@ Compress-Archive -Path main.py,isy2ntfy_node.py,requirements.txt,install.sh,serv
 
 ### Short description
 
-Send ISY notification customization messages to ntfy.sh with a selectable message template and secure KEY-based publishing.
+Send ISY notification customization messages to ntfy.sh with a selectable message template and secure TOPIC-based publishing.
 
 ### Long description
 
-ISY2NTFY is a PG3 node server that bridges ISY notification customization templates to ntfy.sh.
+NTFY is a PG3 node server that bridges ISY notification customization templates to ntfy.sh.
 
 Key features:
 
-- Uses a simple `KEY` parameter for ntfy bearer-token authentication.
+- Uses a simple `TOPIC` parameter for ntfy topic/token configuration.
 - Lets you select a message template from ISY email/notification customizations.
 - Sends the selected template to your configured ntfy topic using a node command.
 - Supports refresh of template options when customizations change.
@@ -108,7 +108,7 @@ Typical use cases:
 
 Required configuration:
 
-- `KEY`: ntfy bearer token.
+- `TOPIC`: ntfy topic name or bearer token.
 - `NTFY_URL`: ntfy base URL (optional; defaults to `https://ntfy.sh`).
 - `ISY_REST_URL`: optional, only needed for ISY template-fetch mode.
 
@@ -129,11 +129,11 @@ Bridge ISY notification templates to ntfy.sh. Select a saved message and send it
 
 Long (<= 500 chars):
 
-ISY2NTFY is a PG3 node server that sends ISY notification customization templates to ntfy.sh. Configure KEY and NTFY_URL once, choose a template from ISY custom messages, and send with a command. Refresh updates template options when ISY customizations change.
+NTFY is a PG3 node server that sends ISY notification customization templates to ntfy.sh. Configure TOPIC and NTFY_URL once, choose a template from ISY custom messages, and send with a command. Refresh updates template options when ISY customizations change.
 
 Long (<= 1000 chars):
 
-ISY2NTFY connects your ISY notification customization messages to ntfy.sh so you can deliver alerts to phones and desktops through ntfy topics. The node server is built for PG3 and supports KEY-based ntfy authentication with simple setup. After configuration, select a template in the controller node and trigger Send Selected Message to publish that content to your configured URL. If your ISY custom messages change, use Refresh Templates to reload dropdown options. Required settings are KEY and NTFY_URL, with optional ISY_REST_URL for template-fetch mode.
+NTFY connects your ISY notification customization messages to ntfy.sh so you can deliver alerts to phones and desktops through ntfy topics. The node server is built for PG3 and supports topic/token-based ntfy publishing with simple setup. After configuration, select a template in the controller node and trigger Send Selected Message to publish that content to your configured URL. If your ISY custom messages change, use Refresh Templates to reload dropdown options. Required settings are TOPIC and NTFY_URL, with optional ISY_REST_URL for template-fetch mode.
 
 Keywords/Tags:
 
