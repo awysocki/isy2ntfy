@@ -1,20 +1,21 @@
 {
   "name": "NTFY",
+  "allowIsyAccess" : 1,
   "docs": "https://github.com/awysocki/isy2ntfy",
   "type": "python3",
   "executable": "main.py",
   "install": "install.sh",
-  "version": "2026.7.034",
+  "version": "2026.7.036",
   "shortPoll": 30,
   "longPoll": 300,
   "restart": true,
   "credits": [
     {
       "title": "NTFY",
-      "version": "2026.7.034"
+      "version": "2026.7.036"
     }
   ],
-  "profile_version": "2026.7.034",
+  "profile_version": "2026.7.036",
   "description": "Send ISY notification customization messages to ntfy.sh",
   "id": "isy2ntfy",
   "language": "python3",

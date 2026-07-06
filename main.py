@@ -2,21 +2,17 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Dict, List
 
 import udi_interface
 
-from isy2ntfy_node import ISY2Ntfy, MessageTemplate, Settings
+# Notice how clean the imports are now!
+from isy2ntfy_node import ISY2Ntfy, Settings
 
 LOGGER = udi_interface.LOGGER
 polyglot = None
 DEFAULT_NTFY_URL = "https://ntfy.sh"
 DEFAULT_MESSAGE_TAG = "bell"
 DEFAULT_STARTUP_TAG = "rocket"
-
-
-def _profile_dir() -> Path:
-    return Path(__file__).parent / "profile"
 
 
 def _load_nodeserver_version() -> str:
@@ -43,59 +39,11 @@ def _load_nodeserver_version() -> str:
     return default_version
 
 
-def _safe_label(text: str, limit: int = 50) -> str:
-    return " ".join(text.split())[:limit] if text else "Message"
-
-
-def write_msgsel_editor(templates: List[MessageTemplate]) -> None:
-    editor_options = "\n".join(
-        f'      <option id="{t.template_id}">{_safe_label(t.name)}</option>' for t in templates
-    )
-    if not editor_options:
-        editor_options = '      <option id="1">Message 1</option>'
-
-    xml = (
-        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-        "<editors>\n"
-        "  <editor id=\"CTRLST\">\n"
-        "    <range uom=\"2\">\n"
-        "      <option id=\"0\">Disconnected</option>\n"
-        "      <option id=\"1\">Connected</option>\n"
-        "    </range>\n"
-        "  </editor>\n"
-        "  <editor id=\"MSGSEL\">\n"
-        "    <range uom=\"25\">\n"
-        f"{editor_options}\n"
-        "    </range>\n"
-        "  </editor>\n"
-        "  <editor id=\"MSGDEV\">\n"
-        "    <range uom=\"25\">\n"
-        "      <option id=\"0\">default</option>\n"
-        "    </range>\n"
-        "  </editor>\n"
-        "  <editor id=\"MSGSND\">\n"
-        "    <range uom=\"25\">\n"
-        "      <option id=\"0\">default</option>\n"
-        "    </range>\n"
-        "  </editor>\n"
-        "</editors>\n"
-    )
-
-    editor_file = _profile_dir() / "editor" / "editors.xml"
-    editor_file.parent.mkdir(parents=True, exist_ok=True)
-    editor_file.write_text(xml, encoding="utf-8")
-
-
-ControllerBase = udi_interface.Node
-
-
-class Controller(ControllerBase):
+class Controller(udi_interface.Node):
     id = "ntfy"
     drivers = [
         {"driver": "ST", "value": 0, "uom": 2},
-        {"driver": "GV0", "value": 1, "uom": 25},
     ]
-    commands = {}
 
     def __init__(self, poly):
         super().__init__(poly, "ntfy", "ntfy", "NTFY")
@@ -103,7 +51,6 @@ class Controller(ControllerBase):
         self.poly = poly
         self.custom_params = udi_interface.Custom(poly, "customparams")
         self.bridge = None
-        self.templates: Dict[int, str] = {}
         self._startup_announcement_sent = False
         self._customparams_bootstrapped = False
         self._counter_file = Path(__file__).parent / ".message_id_counter"
@@ -117,16 +64,15 @@ class Controller(ControllerBase):
         self.poly.subscribe(self.poly.POLL, self.poll)
 
         self.commands = {
-            "SEND": Controller.cmd_send,
-            "REFRESH": Controller.cmd_refresh,
-            "QUERY": Controller.query,
-            "GV10": Controller.cmd_gv10,
+            "QUERY": self.query,
+            "GV10": self.cmd_gv10,
         }
 
     def start(self, *_args):
         LOGGER.info("Starting NTFY")
         self._ensure_required_params()
-        self._connect_and_refresh_templates(install_profile=True)
+        self._build_bridge()
+        
         key = str(self.custom_params.get("KEY", "")).strip()
         if key:
             self._send_startup_announcement(source="startup")
@@ -140,11 +86,10 @@ class Controller(ControllerBase):
         self.custom_params.load(params)
         self._ensure_required_params()
         current_key = str(self.custom_params.get("KEY", "")).strip()
-        self._connect_and_refresh_templates(install_profile=True)
+        self._build_bridge()
     
-        LOGGER.info("Refreshing profile files and pushing to IoX hub...")
+        LOGGER.info("Pushing profile to IoX hub...")
         self.poly.updateProfile()
-        self.poly.installprofile()
 
         if not self._customparams_bootstrapped:
             self._customparams_bootstrapped = True
@@ -154,7 +99,6 @@ class Controller(ControllerBase):
             self._send_startup_announcement(source="key-updated")
 
     def _ensure_required_params(self):
-        # Lean and clean for automated loopback token routing
         required = {
             "KEY": "",
             "NTFY_URL": DEFAULT_NTFY_URL,
@@ -214,38 +158,13 @@ class Controller(ControllerBase):
             LOGGER.warning("Set KEY custom param to enable ntfy publishing")
             return
 
-        # Target the local eisy core directly on the automated loopback port
-        isy_url = "http://localhost:8080"
-
+        # Initialize the clean Settings object
         settings = Settings(
-            isy_base_url=isy_url,
-            isy_username=None,
-            isy_password=None,
             ntfy_publish_url=ntfy_url,
             ntfy_key=key,
         )
-        self.bridge = ISY2Ntfy(settings, polyglot=self.poly)
+        self.bridge = ISY2Ntfy(settings)
         self.setDriver("ST", 1, force=True)
-
-    def _connect_and_refresh_templates(self, install_profile: bool = False):
-        self._build_bridge()
-        if not self.bridge:
-            return
-
-        try:
-            templates = self.bridge.fetch_customization_messages()
-            self.templates = {t.template_id: t.name for t in templates}
-            write_msgsel_editor(templates)
-            if templates:
-                first_id = templates[0].template_id
-                self.setDriver("GV0", first_id, force=True)
-            if install_profile:
-                self.poly.updateProfile()
-                self.poly.installprofile()
-            LOGGER.info("Loaded %s customization messages", len(templates))
-        except Exception as exc:
-            self.setDriver("ST", 0, force=True)
-            LOGGER.error("Unable to refresh ISY customization messages: %s", exc)
 
     @staticmethod
     def _extract_command(args):
@@ -255,127 +174,15 @@ class Controller(ControllerBase):
             return args[0]
         return args[-1]
 
-    @staticmethod
-    def _response_url(response) -> str:
-        return str(getattr(response, "url", ""))
-
     def query(self, *args):
         self.reportDrivers()
 
-    def cmd_refresh(self, *args):
-        self._connect_and_refresh_templates(install_profile=True)
-
-    def cmd_send(self, *args):
-        command = self._extract_command(args)
-        if not self.bridge:
-            self._build_bridge()
-        if not self.bridge:
-            return
-
-        selected = int(float(self.getDriver("GV0") or 1))
-
-        if isinstance(command, dict):
-            query = command.get("query")
-            if isinstance(query, dict):
-                qval = query.get("Template.uom25")
-                if qval is None:
-                    qval = query.get("Content.uom25")
-                if qval is not None:
-                    try:
-                        selected = int(float(qval))
-                    except Exception:
-                        pass
-
-            for key in ("content", "GV0", "gv0", "uom25", "value"):
-                val = command.get(key)
-                if val is None:
-                    continue
-                try:
-                    selected = int(float(val))
-                    break
-                except Exception:
-                    continue
-
-        try:
-            response = self.bridge.send_customization_to_ntfy(
-                selected,
-                message_id=self._build_message_id(),
-                tags=DEFAULT_MESSAGE_TAG,
-            )
-            LOGGER.info(
-                "Sent template %s to ntfy topic. HTTP %s url=%s",
-                selected,
-                response.status_code,
-                self._response_url(response),
-            )
-        except Exception as exc:
-            LOGGER.error("Failed to publish template %s: %s", selected, exc)
-
     def cmd_gv10(self, *args):
+        """
+        Catches the UOM 147 payload from the ISY and logs it.
+        """
         command = self._extract_command(args)
-        if not self.bridge:
-            self._build_bridge()
-        if not self.bridge:
-            return
-
-        if isinstance(command, dict):
-            query = command.get("query")
-            if isinstance(query, dict):
-                template_val = query.get("Template.uom25")
-                if template_val is None:
-                    template_val = query.get("Content.uom25")
-                if template_val is not None:
-                    try:
-                        selected = int(float(template_val))
-                    except Exception:
-                        selected = int(float(self.getDriver("GV0") or 1))
-                    try:
-                        response = self.bridge.send_customization_to_ntfy(
-                            selected,
-                            message_id=self._build_message_id(),
-                            tags=DEFAULT_MESSAGE_TAG,
-                        )
-                        self.setDriver("GV0", selected, force=True)
-                        LOGGER.info(
-                            "Sent template %s via GV10 UI command. HTTP %s url=%s",
-                            selected,
-                            response.status_code,
-                            self._response_url(response),
-                        )
-                    except Exception as exc:
-                        LOGGER.error("Failed to publish GV10 template %s: %s", selected, exc)
-                    return
-
-        title = "ISY Notification"
-        body = ""
-        source_id = None
-
-        if isinstance(command, dict):
-            query = command.get("query")
-            if isinstance(query, dict):
-                content = query.get("Content.uom147")
-                if isinstance(content, dict):
-                    notification = content.get("notification")
-                    if isinstance(notification, dict):
-                        source_id = notification.get("@_id")
-                        formatted = notification.get("formatted")
-                        if isinstance(formatted, dict):
-                            title = str(formatted.get("subject") or title).strip() or title
-                            body = str(formatted.get("body") or "").strip()
-
-        if not body:
-            LOGGER.warning("GV10 received but no notification body found in payload")
-            return
-
-        try:
-            response = self.bridge._publish_to_ntfy(
-                MessageTemplate(template_id=0, name=title, body=body),
-                message_id=self._build_message_id(source_id),
-                tags=DEFAULT_MESSAGE_TAG,
-            )
-            LOGGER.info("Sent GV10 notification to ntfy. HTTP %s url=%s", response.status_code, self._response_url(response))
-        except Exception as exc:
-            LOGGER.error("Failed to publish GV10 notification: %s", exc)
+        LOGGER.info("RAW NOTIFICATION COMMAND RECEIVED: %s", command)
 
     def _send_startup_announcement(self, source: str = "startup"):
         if source == "startup" and self._startup_announcement_sent:
@@ -390,18 +197,16 @@ class Controller(ControllerBase):
             title = "NTFY Started (Key Updated)"
 
         try:
-            response = self.bridge._publish_to_ntfy(
-                MessageTemplate(
-                    template_id=0,
-                    name=title,
-                    body=body,
-                ),
+            # Using the new send_notification function
+            response = self.bridge.send_notification(
+                title=title,
+                body=body,
                 message_id=self._build_message_id(),
                 tags=DEFAULT_STARTUP_TAG,
             )
             if source == "startup":
                 self._startup_announcement_sent = True
-            LOGGER.info("Sent startup announcement to ntfy. HTTP %s url=%s", response.status_code, self._response_url(response))
+            LOGGER.info("Sent startup announcement to ntfy. HTTP %s", response.status_code)
         except Exception as exc:
             LOGGER.warning("Unable to send startup announcement: %s", exc)
 

@@ -8,6 +8,9 @@
     </sts>
     <cmds>
       <accepts>
+        <cmd id="GV10">
+          <prm id="value" editor="NOTIFY_SYS_CUSTOM" />
+        </cmd>
         <cmd id="SEND">
           <p id="Content" editor="MSGSEL" init="GV0" />
         </cmd>
