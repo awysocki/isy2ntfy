@@ -22,6 +22,6 @@
     </range>
   </editor>
   <editor id="NOTIFY_SYS_CUSTOM">
-    <range uom="147" min="0" max="10000" step="1" />
-  </editor>  
+    <custom uom="147" />
+  </editor>
 </editors>

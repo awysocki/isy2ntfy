@@ -9,7 +9,8 @@
     <cmds>
       <accepts>
         <cmd id="GV10">
-          <prm id="value" editor="NOTIFY_SYS_CUSTOM" />
+          <!-- Put the id="Content" back in so the ISY renders it! -->
+          <p id="Content" editor="NOTIFY_SYS_CUSTOM" init="GV10" />
         </cmd>
         <cmd id="SEND">
           <p id="Content" editor="MSGSEL" init="GV0" />

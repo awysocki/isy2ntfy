@@ -1,9 +1,13 @@
-ND-ntfy-NAME = NTFY
-ST-ntfy-ST-NAME = Status
-ST-ntfy-GV0-NAME = Message Template
+# Node Definition Names
+ND-ntfy-NAME = NTFY Notification Node
 
-# This creates the "Send Message" button text
-CMD-ntfy-SEND-NAME = Send Message
+# Status / Driver Headers
+ST-ntfy-ST = Status
+ST-ntfy-GV0 = Message Template
 
-# This labels the dropdown selection menu next to the button
-CMDP-ntfy-SEND-Content-NAME = Content
+# Command Buttons and Parameter Headings
+CMD-ntfy-GV10-NAME = Send Custom Message
+CMD-ntfy-GV10-Content-NAME = Content
+
+CMD-ntfy-SEND-NAME = Send Free Text
+CMD-ntfy-SEND-Content-NAME = Message Body
